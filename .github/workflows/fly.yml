@@ -1,0 +1,51 @@
+name: Deploy to fly.io
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    name: Deploy app
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Check for FLY_API_TOKEN
+        run: |
+          if [ -z "${{ secrets.FLY_API_TOKEN }}" ]; then
+            echo "::error::FLY_API_TOKEN is not set in repository secrets"
+            echo "Please add your Fly.io API token as a repository secret named FLY_API_TOKEN"
+            exit 1
+          fi
+      - name: Launch app on fly.io
+        run: |
+          # Check if fly.toml exists, create it if not
+          if [ ! -f fly.toml ]; then
+            echo "Creating fly.toml configuration file"
+            cat > fly.toml << EOL
+app = "ui-design-w4dwvq"
+primary_region = "sjc"
+
+[build]
+  builder = "heroku/buildpacks:20"
+
+[env]
+  PORT = "8080"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+EOL
+          fi
+          
+          # Deploy the application
+          flyctl deploy --yes
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      - name: Check deployment status
+        run: flyctl status
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
